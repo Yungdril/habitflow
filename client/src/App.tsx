@@ -6,16 +6,24 @@ import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import Home from "./pages/Home";
 import Dashboard from "./pages/Dashboard";
+import Analytics from "./pages/Analytics";
+import Calendar from "./pages/Calendar";
 import ProtectedRoute from "./components/ProtectedRoute";
 
 function Router() {
   return (
     <Switch>
       <Route path={"/"} component={Home} />
-      <Route path={"/dashboard"}>
+      <Route path="/dashboard">
         {() => <ProtectedRoute component={Dashboard} />}
       </Route>
-      <Route path={"/404"} component={NotFound} />
+      <Route path="/analytics">
+        {() => <ProtectedRoute component={Analytics} />}
+      </Route>
+      <Route path="/calendar">
+        {() => <ProtectedRoute component={Calendar} />}
+      </Route>
+      <Route path="/404" component={NotFound} />
       {/* Final fallback route */}
       <Route component={NotFound} />
     </Switch>
@@ -27,7 +35,6 @@ function App() {
     <ErrorBoundary>
       <ThemeProvider
         defaultTheme="dark"
-        switchable
       >
         <TooltipProvider>
           <Toaster />

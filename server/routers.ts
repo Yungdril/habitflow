@@ -6,6 +6,8 @@ import { z } from "zod";
 import * as db from "./db";
 import { TRPCError } from "@trpc/server";
 
+// TODO: Add feature routers here as needed
+
 export const appRouter = router({
   system: systemRouter,
   auth: router({
@@ -132,6 +134,14 @@ export const appRouter = router({
     getStats: protectedProcedure
       .input(z.object({ startDate: z.date(), endDate: z.date() }))
       .query(({ ctx, input }) => db.getCompletionStats(ctx.user.id, input.startDate, input.endDate)),
+
+    getWeeklySummary: protectedProcedure
+      .input(z.object({ startDate: z.date(), endDate: z.date() }))
+      .query(({ ctx, input }) => db.getWeeklySummary(ctx.user.id, input.startDate, input.endDate)),
+
+    getMonthlySummary: protectedProcedure
+      .input(z.object({ startDate: z.date(), endDate: z.date() }))
+      .query(({ ctx, input }) => db.getMonthlySummary(ctx.user.id, input.startDate, input.endDate)),
   }),
 });
 

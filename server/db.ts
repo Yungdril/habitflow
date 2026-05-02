@@ -236,3 +236,79 @@ export async function getCompletionStats(userId: number, startDate: Date, endDat
 
   return { totalHabits, completedToday: completed, completionRate };
 }
+
+export async function getWeeklySummary(userId: number, startDate: Date, endDate: Date) {
+  const db = await getDb();
+  if (!db) return [];
+
+  const result = [];
+  const current = new Date(startDate);
+
+  while (current <= endDate) {
+    const weekStart = new Date(current);
+    weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekEnd.getDate() + 6);
+
+    const startStr = weekStart.toISOString().split("T")[0];
+    const endStr = weekEnd.toISOString().split("T")[0];
+
+    const completed = await db
+      .select({ count: sql`COUNT(*)` })
+      .from(habitTracking)
+      .where(
+        and(
+          eq(habitTracking.userId, userId),
+          eq(habitTracking.completed, true),
+          gte(habitTracking.completedDate, startStr as any),
+          lte(habitTracking.completedDate, endStr as any)
+        )
+      );
+
+    result.push({
+      week: `Week of ${startStr}`,
+      completed: (completed[0]?.count as number) || 0,
+    });
+
+    current.setDate(current.getDate() + 7);
+  }
+
+  return result;
+}
+
+export async function getMonthlySummary(userId: number, startDate: Date, endDate: Date) {
+  const db = await getDb();
+  if (!db) return [];
+
+  const result = [];
+  const current = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
+
+  while (current <= endDate) {
+    const monthStart = new Date(current);
+    const monthEnd = new Date(current.getFullYear(), current.getMonth() + 1, 0);
+
+    const startStr = monthStart.toISOString().split("T")[0];
+    const endStr = monthEnd.toISOString().split("T")[0];
+
+    const completed = await db
+      .select({ count: sql`COUNT(*)` })
+      .from(habitTracking)
+      .where(
+        and(
+          eq(habitTracking.userId, userId),
+          eq(habitTracking.completed, true),
+          gte(habitTracking.completedDate, startStr as any),
+          lte(habitTracking.completedDate, endStr as any)
+        )
+      );
+
+    result.push({
+      month: monthStart.toLocaleString("default", { month: "long", year: "numeric" }),
+      completed: (completed[0]?.count as number) || 0,
+    });
+
+    current.setMonth(current.getMonth() + 1);
+  }
+
+  return result;
+}
