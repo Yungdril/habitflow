@@ -1,6 +1,6 @@
-import { eq } from "drizzle-orm";
+import { eq, and, gte, lte, desc, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users } from "../drizzle/schema";
+import { InsertUser, users, habits, habitTracking, Habit, InsertHabit, HabitTracking, InsertHabitTracking } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -89,4 +89,150 @@ export async function getUserByOpenId(openId: string) {
   return result.length > 0 ? result[0] : undefined;
 }
 
-// TODO: add feature queries here as your schema grows.
+// ============ HABIT QUERIES ============
+
+export async function getUserHabits(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(habits).where(eq(habits.userId, userId)).orderBy(desc(habits.updatedAt));
+}
+
+export async function getHabitById(habitId: number, userId: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db
+    .select()
+    .from(habits)
+    .where(and(eq(habits.id, habitId), eq(habits.userId, userId)))
+    .limit(1);
+  return result.length > 0 ? result[0] : undefined;
+}
+
+export async function createHabit(habit: InsertHabit) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(habits).values(habit);
+  return result;
+}
+
+export async function updateHabit(habitId: number, userId: number, updates: Partial<Habit>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db
+    .update(habits)
+    .set({ ...updates, updatedAt: new Date() })
+    .where(and(eq(habits.id, habitId), eq(habits.userId, userId)));
+}
+
+export async function deleteHabit(habitId: number, userId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(habitTracking).where(eq(habitTracking.habitId, habitId));
+  return db.delete(habits).where(and(eq(habits.id, habitId), eq(habits.userId, userId)));
+}
+
+// ============ HABIT TRACKING QUERIES ============
+
+export async function getTrackingForDate(userId: number, date: Date) {
+  const db = await getDb();
+  if (!db) return [];
+  const dateStr = date.toISOString().split("T")[0];
+  return db
+    .select()
+    .from(habitTracking)
+    .where(and(eq(habitTracking.userId, userId), eq(habitTracking.completedDate, dateStr as any)))
+    .orderBy(desc(habitTracking.createdAt));
+}
+
+export async function getTrackingForHabitAndDate(habitId: number, userId: number, date: Date) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const dateStr = date.toISOString().split("T")[0];
+  const result = await db
+    .select()
+    .from(habitTracking)
+    .where(
+      and(
+        eq(habitTracking.habitId, habitId),
+        eq(habitTracking.userId, userId),
+        eq(habitTracking.completedDate, dateStr as any)
+      )
+    )
+    .limit(1);
+  return result.length > 0 ? result[0] : undefined;
+}
+
+export async function getHabitTrackingHistory(habitId: number, userId: number, startDate: Date, endDate: Date) {
+  const db = await getDb();
+  if (!db) return [];
+  const startStr = startDate.toISOString().split("T")[0];
+  const endStr = endDate.toISOString().split("T")[0];
+  return db
+    .select()
+    .from(habitTracking)
+    .where(
+      and(
+        eq(habitTracking.habitId, habitId),
+        eq(habitTracking.userId, userId),
+        gte(habitTracking.completedDate, startStr as any),
+        lte(habitTracking.completedDate, endStr as any)
+      )
+    )
+    .orderBy(desc(habitTracking.completedDate));
+}
+
+export async function upsertTracking(tracking: InsertHabitTracking) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const dateStr = tracking.completedDate instanceof Date 
+    ? tracking.completedDate.toISOString().split("T")[0]
+    : tracking.completedDate;
+  
+  const existing = await db
+    .select()
+    .from(habitTracking)
+    .where(
+      and(
+        eq(habitTracking.habitId, tracking.habitId),
+        eq(habitTracking.userId, tracking.userId),
+        eq(habitTracking.completedDate, dateStr as any)
+      )
+    )
+    .limit(1);
+
+  if (existing.length > 0) {
+    return db
+      .update(habitTracking)
+      .set({ completed: tracking.completed, updatedAt: new Date() })
+      .where(eq(habitTracking.id, existing[0].id));
+  } else {
+    return db.insert(habitTracking).values(tracking);
+  }
+}
+
+export async function getCompletionStats(userId: number, startDate: Date, endDate: Date) {
+  const db = await getDb();
+  if (!db) return { totalHabits: 0, completedToday: 0, completionRate: 0 };
+  
+  const startStr = startDate.toISOString().split("T")[0];
+  const endStr = endDate.toISOString().split("T")[0];
+  
+  const userHabits = await db.select().from(habits).where(eq(habits.userId, userId));
+  const completedCount = await db
+    .select({ count: sql`COUNT(*)` })
+    .from(habitTracking)
+    .where(
+      and(
+        eq(habitTracking.userId, userId),
+        eq(habitTracking.completed, true),
+        gte(habitTracking.completedDate, startStr as any),
+        lte(habitTracking.completedDate, endStr as any)
+      )
+    );
+
+  const totalHabits = userHabits.length;
+  const completed = (completedCount[0]?.count as number) || 0;
+  const completionRate = totalHabits > 0 ? Math.round((completed / totalHabits) * 100) : 0;
+
+  return { totalHabits, completedToday: completed, completionRate };
+}
