@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
+import DashboardLayout from "@/components/DashboardLayout";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Select,
   SelectContent,
@@ -10,21 +11,30 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ChevronLeft, ChevronRight } from "lucide-react";
 
 export default function Calendar() {
   const { user } = useAuth();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedHabitId, setSelectedHabitId] = useState<number | null>(null);
 
-  const { data: habits } = trpc.habits.list.useQuery(undefined, { enabled: !!user });
-  const { data: tracking } = trpc.tracking.getHistory.useQuery(
+  const { data: habits, isLoading: habitsLoading } = trpc.habits.list.useQuery(undefined, {
+    enabled: !!user,
+  });
+
+  // Set first habit as selected by default
+  useMemo(() => {
+    if (habits && habits.length > 0 && !selectedHabitId) {
+      setSelectedHabitId(habits[0].id);
+    }
+  }, [habits, selectedHabitId]);
+
+  const { data: trackingData, isLoading: trackingLoading } = trpc.tracking.getHistory.useQuery(
     {
       habitId: selectedHabitId || 0,
       startDate: new Date(currentDate.getFullYear(), currentDate.getMonth(), 1),
       endDate: new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0),
     },
-    { enabled: !!user && selectedHabitId !== null }
+    { enabled: !!user && !!selectedHabitId }
   );
 
   // Generate calendar grid
@@ -41,33 +51,26 @@ export default function Calendar() {
   const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
   const emptyDays = Array.from({ length: firstDay }, (_, i) => i);
 
-  // Get completion data
-  const completionMap = new Map(
-    tracking?.map((entry) => {
-      const date = new Date(entry.completedDate);
-      return [date.getDate(), entry.completed];
-    }) || []
-  );
-
-  const getCompletionColor = (day: number) => {
-    const completed = completionMap.get(day);
-    if (completed === undefined) return "bg-card/30";
-    if (completed) return "bg-primary/70 border-primary/50";
-    return "bg-destructive/30 border-destructive/50";
+  // Check if a date is completed
+  const isDateCompleted = (date: Date) => {
+    if (!trackingData) return false;
+    const dateStr = date.toISOString().split("T")[0];
+    return trackingData.some((track: any) => track.completedDate === dateStr || track.completedDate?.split("T")[0] === dateStr);
   };
 
-  const previousMonth = () => {
-    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1));
+  const handlePrevMonth = () => {
+    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
   };
 
-  const nextMonth = () => {
-    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1));
+  const handleNextMonth = () => {
+    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
   };
 
   const monthName = currentDate.toLocaleString("default", { month: "long", year: "numeric" });
 
   return (
-    <div className="space-y-6">
+    <DashboardLayout>
+      <div className="space-y-8">
       {/* Header */}
       <div>
         <h1 className="text-4xl font-bold text-foreground">Calendar</h1>
@@ -84,8 +87,8 @@ export default function Calendar() {
             value={selectedHabitId?.toString() || ""}
             onValueChange={(value) => setSelectedHabitId(parseInt(value))}
           >
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder="Choose a habit to view" />
+            <SelectTrigger>
+              <SelectValue placeholder="Select a habit" />
             </SelectTrigger>
             <SelectContent>
               {habits?.map((habit) => (
@@ -108,72 +111,114 @@ export default function Calendar() {
                 <CardDescription>Green = completed, Red = missed, Gray = no data</CardDescription>
               </div>
               <div className="flex gap-2">
-                <Button variant="outline" size="icon" onClick={previousMonth}>
-                  <ChevronLeft className="w-4 h-4" />
-                </Button>
-                <Button variant="outline" size="icon" onClick={nextMonth}>
-                  <ChevronRight className="w-4 h-4" />
-                </Button>
+                <button
+                  onClick={handlePrevMonth}
+                  className="px-3 py-2 rounded-lg bg-primary/10 hover:bg-primary/20 transition-colors text-sm font-medium"
+                >
+                  ← Prev
+                </button>
+                <button
+                  onClick={handleNextMonth}
+                  className="px-3 py-2 rounded-lg bg-primary/10 hover:bg-primary/20 transition-colors text-sm font-medium"
+                >
+                  Next →
+                </button>
               </div>
             </div>
           </CardHeader>
           <CardContent>
-            {/* Weekday headers */}
-            <div className="grid grid-cols-7 gap-2 mb-4">
-              {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
-                <div key={day} className="text-center text-xs font-semibold text-muted-foreground py-2">
-                  {day}
+            {trackingLoading ? (
+              <Skeleton className="h-96 w-full" />
+            ) : (
+              <div className="space-y-4">
+                {/* Day headers */}
+                <div className="grid grid-cols-7 gap-2 mb-4">
+                  {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
+                    <div
+                      key={day}
+                      className="text-center text-sm font-semibold text-muted-foreground py-2"
+                    >
+                      {day}
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
 
-            {/* Calendar grid */}
-            <div className="grid grid-cols-7 gap-2">
-              {/* Empty cells for days before month starts */}
-              {emptyDays.map((_, i) => (
-                <div key={`empty-${i}`} className="aspect-square" />
-              ))}
+                {/* Calendar grid */}
+                <div className="grid grid-cols-7 gap-2">
+                  {Array.from({ length: firstDay }).map((_, i) => (
+                    <div key={`empty-${i}`} className="aspect-square" />
+                  ))}
+                  {days.map((day) => {
+                    const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
+                    const isCompleted = isDateCompleted(date);
+                    const isToday = date.toDateString() === new Date().toDateString();
 
-              {/* Days of month */}
-              {days.map((day) => (
-                <div
-                  key={day}
-                  className={`aspect-square flex items-center justify-center rounded-lg border transition-all ${getCompletionColor(
-                    day
-                  )} hover:shadow-lg cursor-pointer`}
-                  title={`${currentDate.toLocaleString("default", { month: "long" })} ${day}`}
-                >
-                  <span className="text-sm font-medium text-foreground">{day}</span>
+                    return (
+                      <div
+                        key={day}
+                        className={`aspect-square rounded-lg flex items-center justify-center text-sm font-medium transition-all ${
+                          isCompleted
+                            ? "bg-green-500/80 text-white shadow-lg"
+                            : isToday
+                            ? "bg-primary/30 border-2 border-primary text-foreground"
+                            : "bg-card/50 text-foreground hover:bg-card/80"
+                        }`}
+                      >
+                        {day}
+                      </div>
+                    );
+                  })}
                 </div>
-              ))}
-            </div>
 
-            {/* Legend */}
-            <div className="mt-8 flex flex-wrap gap-6">
-              <div className="flex items-center gap-2">
-                <div className="w-4 h-4 rounded bg-primary/70 border border-primary/50" />
-                <span className="text-sm text-muted-foreground">Completed</span>
+                {/* Legend */}
+                <div className="flex gap-6 mt-6 pt-4 border-t border-white/10">
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 rounded bg-green-500/80"></div>
+                    <span className="text-sm text-muted-foreground">Completed</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 rounded border-2 border-primary"></div>
+                    <span className="text-sm text-muted-foreground">Today</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 rounded bg-card/50"></div>
+                    <span className="text-sm text-muted-foreground">Not Completed</span>
+                  </div>
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <div className="w-4 h-4 rounded bg-destructive/30 border border-destructive/50" />
-                <span className="text-sm text-muted-foreground">Missed</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-4 h-4 rounded bg-card/30" />
-                <span className="text-sm text-muted-foreground">No Data</span>
-              </div>
-            </div>
+            )}
           </CardContent>
         </Card>
       )}
 
-      {!selectedHabitId && (
+      {selectedHabitId && trackingData && (
         <Card className="bg-card/30 backdrop-blur-xl border-white/10">
-          <CardContent className="py-12">
-            <p className="text-center text-muted-foreground">Select a habit above to view its completion calendar</p>
+          <CardHeader>
+            <CardTitle>This Month's Stats</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-3 gap-4">
+              <div>
+                <p className="text-sm text-muted-foreground">Days Completed</p>
+                <p className="text-2xl font-bold text-primary">{trackingData.length}</p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Completion Rate</p>
+                <p className="text-2xl font-bold text-accent">
+                  {Math.round((trackingData.length / 30) * 100)}%
+                </p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Days Remaining</p>
+                <p className="text-2xl font-bold text-muted-foreground">
+                  {Math.max(0, 30 - trackingData.length)}
+                </p>
+              </div>
+            </div>
           </CardContent>
         </Card>
       )}
     </div>
+    </DashboardLayout>
   );
 }

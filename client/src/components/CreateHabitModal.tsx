@@ -49,7 +49,16 @@ export default function CreateHabitModal({
   const [color, setColor] = useState("#3b82f6");
   const [frequency, setFrequency] = useState("daily");
 
-  const createMutation = trpc.habits.create.useMutation();
+  const utils = trpc.useUtils();
+  const createMutation = trpc.habits.create.useMutation({
+    onSuccess: () => {
+      utils.habits.list.invalidate();
+      toast.success("Habit created successfully! 🎉");
+    },
+    onError: (error) => {
+      toast.error("Failed to create habit. Please try again.");
+    },
+  });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -68,7 +77,6 @@ export default function CreateHabitModal({
         frequency: frequency as "daily" | "weekly" | "custom",
       });
       
-      toast.success("Habit created successfully!");
       setName("");
       setDescription("");
       setIcon("circle");
@@ -77,7 +85,7 @@ export default function CreateHabitModal({
       onOpenChange(false);
       onSuccess();
     } catch (error) {
-      toast.error("Failed to create habit");
+      // Error handling is done in onError callback
     }
   };
 

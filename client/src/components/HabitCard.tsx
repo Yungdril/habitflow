@@ -18,29 +18,72 @@ export default function HabitCard({ habit, onUpdate }: HabitCardProps) {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isCheckedToday, setIsCheckedToday] = useState(false);
 
-  const toggleMutation = trpc.tracking.toggle.useMutation();
-  const deleteMutation = trpc.habits.delete.useMutation();
+  const utils = trpc.useUtils();
+  const toggleMutation = trpc.tracking.toggle.useMutation({
+    onMutate: async ({ habitId, date, completed }) => {
+      // Cancel any outgoing refetches so they don't overwrite optimistic update
+      await utils.habits.list.cancel();
+      
+      // Snapshot the previous value
+      const previousHabits = utils.habits.list.getData();
+      
+      // Optimistically update the cache
+      if (previousHabits) {
+        utils.habits.list.setData(undefined, (old) => {
+          if (!old) return old;
+          return old.map((h) => {
+            if (h.id === habitId) {
+              return {
+                ...h,
+                currentStreak: completed ? h.currentStreak + 1 : Math.max(0, h.currentStreak - 1),
+                totalCompletions: completed ? h.totalCompletions + 1 : Math.max(0, h.totalCompletions - 1),
+              };
+            }
+            return h;
+          });
+        });
+      }
+      
+      return { previousHabits };
+    },
+    onError: (err, newData, context) => {
+      // Rollback on error
+      if (context?.previousHabits) {
+        utils.habits.list.setData(undefined, context.previousHabits);
+      }
+      toast.error("Failed to update habit");
+    },
+    onSuccess: () => {
+      toast.success("Habit updated!");
+    },
+  });
+  
+  const deleteMutation = trpc.habits.delete.useMutation({
+    onSuccess: () => {
+      utils.habits.list.invalidate();
+      toast.success("Habit deleted successfully");
+      onUpdate();
+    },
+    onError: () => {
+      toast.error("Failed to delete habit");
+    },
+  });
 
   const handleToggleToday = async () => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const newState = !isCheckedToday;
+    setIsCheckedToday(newState);
+    
     try {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      
-      // Optimistic update
-      const newState = !isCheckedToday;
-      setIsCheckedToday(newState);
-      
       await toggleMutation.mutateAsync({
         habitId: habit.id,
         date: today,
         completed: newState,
       });
-      
-      toast.success(newState ? "Great job! Habit completed" : "Habit unmarked");
-      onUpdate();
     } catch (error) {
-      setIsCheckedToday(!isCheckedToday);
-      toast.error("Failed to update habit");
+      // Error handling is done in onError callback
     }
   }
 
@@ -49,10 +92,8 @@ export default function HabitCard({ habit, onUpdate }: HabitCardProps) {
     
     try {
       await deleteMutation.mutateAsync({ habitId: habit.id });
-      toast.success("Habit deleted");
-      onUpdate();
     } catch (error) {
-      toast.error("Failed to delete habit");
+      // Error handling is done in onError callback
     }
   };
 
