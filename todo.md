@@ -48,3 +48,16 @@
 - [x] Final UI/UX polish and refinement
 - [x] Documentation for deployment
 - [x] Security review of authentication flow
+
+
+## Phase 9: In-App Notification System 🔔
+- [x] Create notifications table in database schema
+- [x] Add notification preferences table for user settings
+- [x] Build backend procedures for creating and fetching notifications
+- [x] Implement notification center UI component
+- [x] Add real-time notification fetching with polling
+- [x] Build notification preferences/settings page
+- [x] Add browser notification support (optional)
+- [x] Implement notification dismissal and read status
+- [x] Add notification filtering and sorting
+- [x] Write tests for notification system

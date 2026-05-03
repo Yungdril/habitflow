@@ -8,6 +8,7 @@ import Home from "./pages/Home";
 import Dashboard from "./pages/Dashboard";
 import Analytics from "./pages/Analytics";
 import Calendar from "./pages/Calendar";
+import NotificationSettings from "./pages/NotificationSettings";
 import ProtectedRoute from "./components/ProtectedRoute";
 
 function Router() {
@@ -22,6 +23,9 @@ function Router() {
       </Route>
       <Route path="/calendar">
         {() => <ProtectedRoute component={Calendar} />}
+      </Route>
+      <Route path="/notification-settings">
+        {() => <ProtectedRoute component={NotificationSettings} />}
       </Route>
       <Route path="/404" component={NotFound} />
       {/* Final fallback route */}

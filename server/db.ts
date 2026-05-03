@@ -1,6 +1,6 @@
 import { eq, and, gte, lte, desc, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, habits, habitTracking, Habit, InsertHabit, HabitTracking, InsertHabitTracking } from "../drizzle/schema";
+import { InsertUser, users, habits, habitTracking, Habit, InsertHabit, HabitTracking, InsertHabitTracking, notifications, notificationPreferences, Notification, InsertNotification, NotificationPreferences, InsertNotificationPreferences } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -311,4 +311,149 @@ export async function getMonthlySummary(userId: number, startDate: Date, endDate
   }
 
   return result;
+}
+
+
+// ============================================================================
+// NOTIFICATION HELPERS
+// ============================================================================
+
+export async function createNotification(notification: InsertNotification): Promise<Notification | null> {
+  const db = await getDb();
+  if (!db) return null;
+
+  const result = await db.insert(notifications).values(notification);
+  const inserted = await db
+    .select()
+    .from(notifications)
+    .where(eq(notifications.id, (result as any).insertId))
+    .limit(1);
+
+  return inserted.length > 0 ? inserted[0] : null;
+}
+
+export async function getUserNotifications(userId: number, limit: number = 20) {
+  const db = await getDb();
+  if (!db) return [];
+
+  return db
+    .select()
+    .from(notifications)
+    .where(and(eq(notifications.userId, userId), eq(notifications.dismissed, false)))
+    .orderBy(sql`${notifications.createdAt} DESC`)
+    .limit(limit);
+}
+
+export async function markNotificationAsRead(notificationId: number, userId: number) {
+  const db = await getDb();
+  if (!db) return null;
+
+  return db
+    .update(notifications)
+    .set({ read: true })
+    .where(and(eq(notifications.id, notificationId), eq(notifications.userId, userId)));
+}
+
+export async function dismissNotification(notificationId: number, userId: number) {
+  const db = await getDb();
+  if (!db) return null;
+
+  return db
+    .update(notifications)
+    .set({ dismissed: true })
+    .where(and(eq(notifications.id, notificationId), eq(notifications.userId, userId)));
+}
+
+export async function getUnreadNotificationCount(userId: number) {
+  const db = await getDb();
+  if (!db) return 0;
+
+  const result = await db
+    .select({ count: sql`COUNT(*)` })
+    .from(notifications)
+    .where(and(eq(notifications.userId, userId), eq(notifications.read, false), eq(notifications.dismissed, false)));
+
+  return (result[0]?.count as number) || 0;
+}
+
+export async function getPendingHabitsForUser(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+
+  const today = new Date().toISOString().split("T")[0];
+
+  // Get all habits for the user
+  const userHabits = await db.select().from(habits).where(eq(habits.userId, userId));
+
+  // Check which ones are not completed today
+  const completedToday = await db
+    .select({ habitId: habitTracking.habitId })
+    .from(habitTracking)
+    .where(
+      and(
+        eq(habitTracking.userId, userId),
+        eq(habitTracking.completed, true),
+        eq(habitTracking.completedDate, today as any)
+      )
+    );
+
+  const completedIds = new Set(completedToday.map((t) => t.habitId));
+  return userHabits.filter((h) => !completedIds.has(h.id));
+}
+
+export async function getOrCreateNotificationPreferences(userId: number): Promise<NotificationPreferences> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const existing = await db
+    .select()
+    .from(notificationPreferences)
+    .where(eq(notificationPreferences.userId, userId))
+    .limit(1);
+
+  if (existing.length > 0) {
+    return existing[0];
+  }
+
+  // Create default preferences
+  await db.insert(notificationPreferences).values({
+    userId,
+    enablePendingHabits: true,
+    enableStreakMilestones: true,
+    enableReminders: true,
+    enableAchievements: true,
+    reminderTime: "09:00",
+    timezone: "UTC",
+  });
+
+  const created = await db
+    .select()
+    .from(notificationPreferences)
+    .where(eq(notificationPreferences.userId, userId))
+    .limit(1);
+
+  return created[0];
+}
+
+export async function updateNotificationPreferences(userId: number, updates: Partial<InsertNotificationPreferences>) {
+  const db = await getDb();
+  if (!db) return null;
+
+  return db
+    .update(notificationPreferences)
+    .set({ ...updates, updatedAt: new Date() })
+    .where(eq(notificationPreferences.userId, userId));
+}
+
+export async function getNotificationPreferences(userId: number): Promise<NotificationPreferences | null> {
+  const db = await getDb();
+  if (!db) return null;
+
+  const result = await db
+    .select()
+    .from(notificationPreferences)
+    .where(eq(notificationPreferences.userId, userId))
+    .limit(1);
+
+  return result.length > 0 ? result[0] : null;
 }

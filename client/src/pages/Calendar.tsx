@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
@@ -22,7 +22,7 @@ export default function Calendar() {
   });
 
   // Set first habit as selected by default
-  useMemo(() => {
+  useEffect(() => {
     if (habits && habits.length > 0 && !selectedHabitId) {
       setSelectedHabitId(habits[0].id);
     }
@@ -34,7 +34,7 @@ export default function Calendar() {
       startDate: new Date(currentDate.getFullYear(), currentDate.getMonth(), 1),
       endDate: new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0),
     },
-    { enabled: !!user && !!selectedHabitId }
+    { enabled: !!user && !!selectedHabitId },
   );
 
   // Generate calendar grid

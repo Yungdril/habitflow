@@ -106,3 +106,77 @@ export const habitTrackingRelations = relations(habitTracking, ({ one }) => ({
     references: [users.id],
   }),
 }));
+
+/**
+ * Notifications table: stores in-app notifications for pending habits and other events.
+ */
+export const notifications = mysqlTable(
+  "notifications",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    userId: int("userId").notNull(),
+    habitId: int("habitId"),
+    type: mysqlEnum("type", ["pending_habit", "streak_milestone", "reminder", "achievement"]).notNull(),
+    title: varchar("title", { length: 255 }).notNull(),
+    message: text("message"),
+    read: boolean("read").default(false).notNull(),
+    dismissed: boolean("dismissed").default(false).notNull(),
+    actionUrl: varchar("actionUrl", { length: 512 }),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    expiresAt: timestamp("expiresAt"),
+  },
+  (table) => ({
+    userIdIdx: index("notif_userIdIdx").on(table.userId),
+    habitIdIdx: index("notif_habitIdIdx").on(table.habitId),
+    createdAtIdx: index("notif_createdAtIdx").on(table.createdAt),
+  })
+);
+
+export type Notification = typeof notifications.$inferSelect;
+export type InsertNotification = typeof notifications.$inferInsert;
+
+/**
+ * Notification preferences table: stores user notification settings.
+ */
+export const notificationPreferences = mysqlTable(
+  "notification_preferences",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    userId: int("userId").notNull().unique(),
+    enablePendingHabits: boolean("enablePendingHabits").default(true).notNull(),
+    enableStreakMilestones: boolean("enableStreakMilestones").default(true).notNull(),
+    enableReminders: boolean("enableReminders").default(true).notNull(),
+    enableAchievements: boolean("enableAchievements").default(true).notNull(),
+    reminderTime: varchar("reminderTime", { length: 5 }).default("09:00"),
+    timezone: varchar("timezone", { length: 64 }).default("UTC"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  (table) => ({
+    userIdIdx: index("pref_userIdIdx").on(table.userId),
+  })
+);
+
+export type NotificationPreferences = typeof notificationPreferences.$inferSelect;
+export type InsertNotificationPreferences = typeof notificationPreferences.$inferInsert;
+
+/**
+ * Relations for notifications.
+ */
+export const notificationsRelations = relations(notifications, ({ one }) => ({
+  user: one(users, {
+    fields: [notifications.userId],
+    references: [users.id],
+  }),
+  habit: one(habits, {
+    fields: [notifications.habitId],
+    references: [habits.id],
+  }),
+}));
+
+export const notificationPreferencesRelations = relations(notificationPreferences, ({ one }) => ({
+  user: one(users, {
+    fields: [notificationPreferences.userId],
+    references: [users.id],
+  }),
+}));
