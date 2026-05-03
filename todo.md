@@ -61,3 +61,9 @@
 - [x] Implement notification dismissal and read status
 - [x] Add notification filtering and sorting
 - [x] Write tests for notification system
+
+
+## Bug Fixes
+- [x] Fix habit completion toggle allowing re-completion after page refresh on same day
+- [x] Ensure completed habits show as locked/disabled until next day
+- [x] Verify date comparison logic in tracking system

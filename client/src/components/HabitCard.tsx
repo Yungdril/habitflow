@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { Habit } from "@shared/types";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,26 @@ interface HabitCardProps {
 export default function HabitCard({ habit, onUpdate }: HabitCardProps) {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isCheckedToday, setIsCheckedToday] = useState(false);
+
+
+  // Check if habit was completed today on mount
+  const { data: todayCompletion } = trpc.tracking.getForHabitAndDate.useQuery(
+    {
+      habitId: habit.id,
+      date: new Date(),
+    }
+  );
+
+  // Update completion state when data is fetched
+  useEffect(() => {
+    if (todayCompletion !== undefined) {
+      if (todayCompletion && 'completed' in todayCompletion) {
+        setIsCheckedToday(todayCompletion.completed);
+      } else {
+        setIsCheckedToday(false);
+      }
+    }
+  }, [todayCompletion]);
 
   const utils = trpc.useUtils();
   const toggleMutation = trpc.tracking.toggle.useMutation({
@@ -70,6 +90,12 @@ export default function HabitCard({ habit, onUpdate }: HabitCardProps) {
   });
 
   const handleToggleToday = async () => {
+    // Prevent toggling if already completed today
+    if (isCheckedToday) {
+      toast.info("Habit already completed today. Come back tomorrow!");
+      return;
+    }
+
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     
@@ -82,8 +108,13 @@ export default function HabitCard({ habit, onUpdate }: HabitCardProps) {
         date: today,
         completed: newState,
       });
+      toast.success("Great! Habit completed for today.");
     } catch (error) {
       // Error handling is done in onError callback
+      setIsCheckedToday(false); // Reset on error
+      if (error instanceof Error && error.message.includes("already completed")) {
+        toast.info("Habit already completed today. Come back tomorrow!");
+      }
     }
   }
 
@@ -114,7 +145,7 @@ export default function HabitCard({ habit, onUpdate }: HabitCardProps) {
             <div className="flex-1 min-w-0">
               <h3 className="font-semibold text-foreground truncate">{habit.name}</h3>
               {habit.description && (
-                <p className="text-sm text-muted-foreground truncate">{habit.description}</p>
+                <p className="text-sm text-muted-foreground truncate line-clamp-2">{habit.description}</p>
               )}
             </div>
           </div>
@@ -153,12 +184,14 @@ export default function HabitCard({ habit, onUpdate }: HabitCardProps) {
           {/* Check-off button */}
           <Button
             onClick={handleToggleToday}
-            disabled={toggleMutation.isPending}
+            disabled={toggleMutation.isPending || isCheckedToday}
             className={`h-14 w-14 rounded-full p-0 flex-shrink-0 transition-all ${
               isCheckedToday
-                ? "bg-primary text-primary-foreground shadow-lg shadow-primary/50"
+                ? "bg-primary text-primary-foreground shadow-lg shadow-primary/50 opacity-75 cursor-not-allowed"
                 : "bg-card/50 border border-white/20 hover:bg-card/70"
             }`}
+            title={isCheckedToday ? "Completed today. Come back tomorrow!" : "Click to mark habit as complete"}
+            aria-label={isCheckedToday ? "Habit completed today" : "Mark habit as complete"}
           >
             <Check className="w-6 h-6" />
           </Button>

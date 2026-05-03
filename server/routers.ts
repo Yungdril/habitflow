@@ -108,6 +108,19 @@ export const appRouter = router({
         if (!habit) throw new TRPCError({ code: "NOT_FOUND" });
 
         const dateStr = input.date.toISOString().split("T")[0];
+        const today = new Date().toISOString().split("T")[0];
+
+        // Check existing tracking for this date
+        const existingTracking = await db.getTrackingForHabitAndDate(input.habitId, ctx.user.id, input.date);
+        
+        // Prevent re-completing the same habit on the same day
+        if (input.completed && existingTracking && existingTracking.completed) {
+          throw new TRPCError({ 
+            code: "CONFLICT", 
+            message: "Habit already completed today. Come back tomorrow!" 
+          });
+        }
+
         const result = await db.upsertTracking({
           habitId: input.habitId,
           userId: ctx.user.id,
@@ -115,9 +128,10 @@ export const appRouter = router({
           completed: input.completed,
         });
 
-        if (input.completed) {
-          const today = new Date().toISOString().split("T")[0];
-          if (dateStr === today) {
+        // Only increment totalCompletions if this is a new completion
+        if (input.completed && dateStr === today) {
+          const wasAlreadyCompleted = existingTracking && existingTracking.completed;
+          if (!wasAlreadyCompleted) {
             const newTotal = (habit.totalCompletions || 0) + 1;
             await db.updateHabit(input.habitId, ctx.user.id, {
               totalCompletions: newTotal,
