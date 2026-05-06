@@ -29,12 +29,10 @@ export default function HabitCard({ habit, onUpdate }: HabitCardProps) {
 
   // Update completion state when data is fetched
   useEffect(() => {
-    if (todayCompletion !== undefined) {
-      if (todayCompletion && 'completed' in todayCompletion) {
-        setIsCheckedToday(todayCompletion.completed);
-      } else {
-        setIsCheckedToday(false);
-      }
+    if (todayCompletion !== undefined && todayCompletion !== null) {
+      setIsCheckedToday(todayCompletion.completed);
+    } else {
+      setIsCheckedToday(false);
     }
   }, [todayCompletion]);
 

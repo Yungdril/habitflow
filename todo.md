@@ -67,3 +67,5 @@
 - [x] Fix habit completion toggle allowing re-completion after page refresh on same day
 - [x] Ensure completed habits show as locked/disabled until next day
 - [x] Verify date comparison logic in tracking system
+- [x] Fix getForHabitAndDate query returning undefined instead of null
+- [x] Resolve "Query data cannot be undefined" errors on Dashboard

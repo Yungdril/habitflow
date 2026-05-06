@@ -146,7 +146,7 @@ export async function getTrackingForDate(userId: number, date: Date) {
 
 export async function getTrackingForHabitAndDate(habitId: number, userId: number, date: Date) {
   const db = await getDb();
-  if (!db) return undefined;
+  if (!db) return null;
   const dateStr = date.toISOString().split("T")[0];
   const result = await db
     .select()
@@ -159,7 +159,7 @@ export async function getTrackingForHabitAndDate(habitId: number, userId: number
       )
     )
     .limit(1);
-  return result.length > 0 ? result[0] : undefined;
+  return result.length > 0 ? result[0] : null;
 }
 
 export async function getHabitTrackingHistory(habitId: number, userId: number, startDate: Date, endDate: Date) {
