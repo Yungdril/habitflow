@@ -1,0 +1,25 @@
+# HabitFlow - 3D Habit Tracker
+# Search Engine Crawling Rules
+
+# Allow all search engines
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /admin/
+Disallow: /__manus__/
+
+# Specific rules for Google
+User-agent: Googlebot
+Allow: /
+Crawl-delay: 1
+
+# Specific rules for Bing
+User-agent: Bingbot
+Allow: /
+Crawl-delay: 1
+
+# Sitemap location
+Sitemap: https://habitflow3d-gvifhfbv.manus.space/sitemap.xml
+
+# Cache control
+Request-rate: 1 request per 1 second
