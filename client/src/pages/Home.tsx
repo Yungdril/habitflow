@@ -3,10 +3,17 @@ import { Button } from "@/components/ui/button";
 import { useLocation } from "wouter";
 import { getLoginUrl } from "@/const";
 import { Flame, TrendingUp, Zap, CheckCircle2, ArrowRight } from "lucide-react";
+import { useEffect } from "react";
 
 export default function Home() {
   const { isAuthenticated, loading } = useAuth();
   const [, setLocation] = useLocation();
+
+  useEffect(() => {
+    if (isAuthenticated && !loading) {
+      setLocation("/dashboard");
+    }
+  }, [isAuthenticated, loading, setLocation]);
 
   if (loading) {
     return (
@@ -17,7 +24,6 @@ export default function Home() {
   }
 
   if (isAuthenticated) {
-    setLocation("/dashboard");
     return null;
   }
 
