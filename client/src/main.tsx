@@ -7,6 +7,35 @@ import superjson from "superjson";
 import App from "./App";
 import { getLoginUrl } from "./const";
 import "./index.css";
+import { logPerformanceMetrics } from "./lib/performance";
+import { initializeSentry } from "./lib/sentry";
+
+// Initialize error tracking
+initializeSentry();
+
+// Initialize performance monitoring
+if (typeof window !== "undefined") {
+  window.addEventListener("load", () => {
+    logPerformanceMetrics();
+  });
+}
+
+// Initialize Google Analytics 4
+const ga4MeasurementId = import.meta.env.VITE_GA4_MEASUREMENT_ID;
+if (ga4MeasurementId) {
+  const script = document.createElement("script");
+  script.async = true;
+  script.src = `https://www.googletagmanager.com/gtag/js?id=${ga4MeasurementId}`;
+  document.head.appendChild(script);
+
+  (window as any).dataLayer = (window as any).dataLayer || [];
+  const gtag = (...args: any[]) => {
+    ((window as any).dataLayer as any[]).push(args);
+  };
+  (window as any).gtag = gtag;
+  gtag("js", new Date());
+  gtag("config", ga4MeasurementId);
+}
 
 const queryClient = new QueryClient();
 

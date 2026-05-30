@@ -9,12 +9,16 @@ import Dashboard from "./pages/Dashboard";
 import Analytics from "./pages/Analytics";
 import Calendar from "./pages/Calendar";
 import NotificationSettings from "./pages/NotificationSettings";
+import Blog from "./pages/Blog";
+import FAQ from "./pages/FAQ";
 import ProtectedRoute from "./components/ProtectedRoute";
 
 function Router() {
   return (
     <Switch>
       <Route path={"/"} component={Home} />
+      <Route path="/blog" component={Blog} />
+      <Route path="/faq" component={FAQ} />
       <Route path="/dashboard">
         {() => <ProtectedRoute component={Dashboard} />}
       </Route>

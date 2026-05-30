@@ -38,13 +38,21 @@ export default function Home() {
             </div>
             <span className="text-xl font-bold">HabitFlow</span>
           </div>
-          <Button
-            onClick={() => (window.location.href = getLoginUrl())}
-            className="gap-2"
-          >
-            Get Started
-            <ArrowRight className="w-4 h-4" />
-          </Button>
+          <div className="flex items-center gap-4">
+            <a href="/blog" className="text-muted-foreground hover:text-foreground transition-colors">
+              Blog
+            </a>
+            <a href="/faq" className="text-muted-foreground hover:text-foreground transition-colors">
+              FAQ
+            </a>
+            <Button
+              onClick={() => (window.location.href = getLoginUrl())}
+              className="gap-2"
+            >
+              Get Started
+              <ArrowRight className="w-4 h-4" />
+            </Button>
+          </div>
         </div>
       </nav>
 
