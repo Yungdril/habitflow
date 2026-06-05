@@ -9,9 +9,18 @@ import { getLoginUrl } from "./const";
 import "./index.css";
 import { logPerformanceMetrics } from "./lib/performance";
 import { initializeSentry } from "./lib/sentry";
+import { registerServiceWorker, requestNotificationPermission } from "./lib/pwa";
 
 // Initialize error tracking
 initializeSentry();
+
+// Register service worker for PWA
+if (typeof window !== 'undefined') {
+  registerServiceWorker();
+  requestNotificationPermission()?.catch(() => {
+    console.log('[PWA] Notification permission not granted');
+  });
+}
 
 // Initialize performance monitoring
 if (typeof window !== "undefined") {
