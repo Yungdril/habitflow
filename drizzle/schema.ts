@@ -180,3 +180,92 @@ export const notificationPreferencesRelations = relations(notificationPreference
     references: [users.id],
   }),
 }));
+
+/**
+ * Streak freezes table: allows users to skip one day without breaking their streak.
+ * Each user can have multiple freezes per habit.
+ */
+export const streakFreezes = mysqlTable(
+  "streak_freezes",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    habitId: int("habitId").notNull(),
+    userId: int("userId").notNull(),
+    freezeDate: date("freezeDate").notNull(),
+    freezeType: mysqlEnum("freezeType", ["daily", "weekly"]).default("daily").notNull(),
+    usedAt: timestamp("usedAt"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  (table) => ({
+    habitIdIdx: index("freeze_habitIdIdx").on(table.habitId),
+    userIdIdx: index("freeze_userIdIdx").on(table.userId),
+    freezeDateIdx: index("freeze_freezeDateIdx").on(table.freezeDate),
+  })
+);
+
+export type StreakFreeze = typeof streakFreezes.$inferSelect;
+export type InsertStreakFreeze = typeof streakFreezes.$inferInsert;
+
+/**
+ * Achievements/Badges table: tracks user achievements and milestones.
+ */
+export const achievements = mysqlTable(
+  "achievements",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    userId: int("userId").notNull(),
+    badgeId: varchar("badgeId", { length: 64 }).notNull(),
+    badgeName: varchar("badgeName", { length: 255 }).notNull(),
+    description: text("description"),
+    icon: varchar("icon", { length: 64 }).notNull(),
+    category: mysqlEnum("category", ["streak", "completion", "consistency", "milestone", "special"]).notNull(),
+    earnedAt: timestamp("earnedAt").defaultNow().notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  (table) => ({
+    userIdIdx: index("ach_userIdIdx").on(table.userId),
+    badgeIdIdx: index("ach_badgeIdIdx").on(table.badgeId),
+    earnedAtIdx: index("ach_earnedAtIdx").on(table.earnedAt),
+  })
+);
+
+export type Achievement = typeof achievements.$inferSelect;
+export type InsertAchievement = typeof achievements.$inferInsert;
+
+/**
+ * Relations for streak freezes and achievements.
+ */
+export const streakFreezesRelations = relations(streakFreezes, ({ one }) => ({
+  habit: one(habits, {
+    fields: [streakFreezes.habitId],
+    references: [habits.id],
+  }),
+  user: one(users, {
+    fields: [streakFreezes.userId],
+    references: [users.id],
+  }),
+}));
+
+export const achievementsRelations = relations(achievements, ({ one }) => ({
+  user: one(users, {
+    fields: [achievements.userId],
+    references: [users.id],
+  }),
+}));
+
+// Update existing relations to include new relationships
+export const usersRelations_updated = relations(users, ({ many }) => ({
+  habits: many(habits),
+  trackings: many(habitTracking),
+  freezes: many(streakFreezes),
+  achievements: many(achievements),
+}));
+
+export const habitsRelations_updated = relations(habits, ({ one, many }) => ({
+  user: one(users, {
+    fields: [habits.userId],
+    references: [users.id],
+  }),
+  trackings: many(habitTracking),
+  freezes: many(streakFreezes),
+}));

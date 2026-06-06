@@ -211,8 +211,80 @@ export const appRouter = router({
       return { created };
     }),
   }),
+
+  // Streak Freeze procedures
+  streakFreeze: router({
+    create: protectedProcedure
+      .input(z.object({
+        habitId: z.number(),
+        freezeType: z.enum(["daily", "weekly"]),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const freeze = await db.createStreakFreeze({
+          habitId: input.habitId,
+          userId: ctx.user.id,
+          freezeDate: new Date(),
+          freezeType: input.freezeType,
+        });
+        return freeze;
+      }),
+
+    getForHabit: protectedProcedure
+      .input(z.object({ habitId: z.number() }))
+      .query(async ({ ctx, input }) => {
+        return db.getStreakFreezesForHabit(input.habitId, ctx.user.id);
+      }),
+
+    use: protectedProcedure
+      .input(z.object({ freezeId: z.number() }))
+      .mutation(async ({ input }) => {
+        await db.useStreakFreeze(input.freezeId);
+        return { success: true };
+      }),
+  }),
+
+  // Achievement procedures
+  achievement: router({
+    list: protectedProcedure
+      .query(async ({ ctx }) => {
+        return db.getUserAchievements(ctx.user.id);
+      }),
+
+    create: protectedProcedure
+      .input(z.object({
+        badgeId: z.string(),
+        badgeName: z.string(),
+        description: z.string().optional(),
+        icon: z.string(),
+        category: z.enum(["streak", "completion", "consistency", "milestone", "special"]),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const exists = await db.checkAchievementExists(ctx.user.id, input.badgeId);
+        if (exists) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: "Achievement already earned",
+          });
+        }
+
+        const achievement = await db.createAchievement({
+          userId: ctx.user.id,
+          badgeId: input.badgeId,
+          badgeName: input.badgeName,
+          description: input.description,
+          icon: input.icon,
+          category: input.category,
+        });
+        return achievement;
+      }),
+
+    getByCategory: protectedProcedure
+      .input(z.object({ category: z.string() }))
+      .query(async ({ ctx, input }) => {
+        return db.getAchievementsByCategory(ctx.user.id, input.category);
+      }),
+  }),
 });
 
 export type AppRouter = typeof appRouter;
-
 

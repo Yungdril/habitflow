@@ -1,6 +1,6 @@
 import { eq, and, gte, lte, desc, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, habits, habitTracking, Habit, InsertHabit, HabitTracking, InsertHabitTracking, notifications, notificationPreferences, Notification, InsertNotification, NotificationPreferences, InsertNotificationPreferences } from "../drizzle/schema";
+import { InsertUser, users, habits, habitTracking, Habit, InsertHabit, HabitTracking, InsertHabitTracking, notifications, notificationPreferences, Notification, InsertNotification, NotificationPreferences, InsertNotificationPreferences, streakFreezes, achievements, StreakFreeze, InsertStreakFreeze, Achievement, InsertAchievement } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -456,4 +456,122 @@ export async function getNotificationPreferences(userId: number): Promise<Notifi
     .limit(1);
 
   return result.length > 0 ? result[0] : null;
+}
+
+
+// ============================================================================
+// Streak Freeze Functions
+// ============================================================================
+
+export async function createStreakFreeze(data: InsertStreakFreeze): Promise<StreakFreeze | null> {
+  const db = await getDb();
+  if (!db) return null;
+
+  const result = await db.insert(streakFreezes).values(data);
+  if (!result || !result[0]) return null;
+
+  const freeze = await db
+    .select()
+    .from(streakFreezes)
+    .where(eq(streakFreezes.habitId, data.habitId))
+    .orderBy(desc(streakFreezes.createdAt))
+    .limit(1);
+
+  return freeze.length > 0 ? freeze[0] : null;
+}
+
+export async function getStreakFreezesForHabit(habitId: number, userId: number): Promise<StreakFreeze[]> {
+  const db = await getDb();
+  if (!db) return [];
+
+  return db
+    .select()
+    .from(streakFreezes)
+    .where(and(eq(streakFreezes.habitId, habitId), eq(streakFreezes.userId, userId)))
+    .orderBy(desc(streakFreezes.freezeDate));
+}
+
+export async function getUnusedStreakFreeze(habitId: number, userId: number): Promise<StreakFreeze | null> {
+  const db = await getDb();
+  if (!db) return null;
+
+  const result = await db
+    .select()
+    .from(streakFreezes)
+    .where(
+      and(
+        eq(streakFreezes.habitId, habitId),
+        eq(streakFreezes.userId, userId),
+        sql`${streakFreezes.usedAt} IS NULL`
+      )
+    )
+    .limit(1);
+
+  return result.length > 0 ? result[0] : null;
+}
+
+export async function useStreakFreeze(freezeId: number): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+
+  await db
+    .update(streakFreezes)
+    .set({ usedAt: new Date() })
+    .where(eq(streakFreezes.id, freezeId));
+}
+
+// ============================================================================
+// Achievement Functions
+// ============================================================================
+
+export async function createAchievement(data: InsertAchievement): Promise<Achievement | null> {
+  const db = await getDb();
+  if (!db) return null;
+
+  const result = await db.insert(achievements).values(data);
+  if (!result || !result[0]) return null;
+
+  const achievement = await db
+    .select()
+    .from(achievements)
+    .where(and(eq(achievements.userId, data.userId), eq(achievements.badgeId, data.badgeId)))
+    .orderBy(desc(achievements.createdAt))
+    .limit(1);
+
+  return achievement.length > 0 ? achievement[0] : null;
+}
+
+export async function getUserAchievements(userId: number): Promise<Achievement[]> {
+  const db = await getDb();
+  if (!db) return [];
+
+  return db
+    .select()
+    .from(achievements)
+    .where(eq(achievements.userId, userId))
+    .orderBy(desc(achievements.earnedAt));
+}
+
+export async function checkAchievementExists(userId: number, badgeId: string): Promise<boolean> {
+  const db = await getDb();
+  if (!db) return false;
+
+  const result = await db
+    .select()
+    .from(achievements)
+    .where(and(eq(achievements.userId, userId), eq(achievements.badgeId, badgeId)))
+    .limit(1);
+
+  return result.length > 0;
+}
+
+export async function getAchievementsByCategory(userId: number, category: string): Promise<Achievement[]> {
+  const db = await getDb();
+  if (!db) return [];
+
+  return db
+    .select()
+    .from(achievements)
+    .where(and(eq(achievements.userId, userId), eq(achievements.category, category as any)))
+    .orderBy(desc(achievements.earnedAt));
 }

@@ -96,8 +96,8 @@
 - [x] Set up analytics tracking (Google Analytics 4)
 
 ## Phase 11: Feature Enhancements 🎮
-- [ ] Implement habit streak freeze feature (skip 1 day/month)
-- [ ] Add badges and achievements system
+- [x] Implement habit streak freeze feature (skip 1 day/month)
+- [x] Add badges and achievements system
 - [ ] Create leaderboard for top streaks
 - [ ] Add habit difficulty levels (easy/medium/hard)
 - [ ] Implement habit templates library
