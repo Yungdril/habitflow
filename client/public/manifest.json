@@ -25,24 +25,25 @@
   ],
   "icons": [
     {
-      "src": "/favicon.ico",
-      "sizes": "32x32",
-      "type": "image/x-icon"
-    },
-    {
-      "src": "/apple-touch-icon.png",
-      "sizes": "180x180",
-      "type": "image/png",
+      "src": "https://d2xsxph8kpxj0f.cloudfront.net/310519663619870008/gviFhFBvRu5BmY2w8Dp6eH/habitflow-icon-192-U4vta7hMcNApffa9SbpxVi.webp",
+      "sizes": "192x192",
+      "type": "image/webp",
       "purpose": "any"
     },
     {
-      "src": "/android-chrome-192x192.png",
+      "src": "https://d2xsxph8kpxj0f.cloudfront.net/310519663619870008/gviFhFBvRu5BmY2w8Dp6eH/habitflow-icon-512-638qzyZMTvoU2zA2ThVkuw.webp",
+      "sizes": "512x512",
+      "type": "image/webp",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "https://d2xsxph8kpxj0f.cloudfront.net/310519663619870008/gviFhFBvRu5BmY2w8Dp6eH/habitflow-icon-192-XtDiwwG5UfdFVEXCgB9yad.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/android-chrome-512x512.png",
+      "src": "https://d2xsxph8kpxj0f.cloudfront.net/310519663619870008/gviFhFBvRu5BmY2w8Dp6eH/habitflow-icon-512-cecScFifHTHbw8zDgeEZkW.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
@@ -56,7 +57,7 @@
       "url": "/dashboard",
       "icons": [
         {
-          "src": "/favicon.ico",
+          "src": "https://d2xsxph8kpxj0f.cloudfront.net/310519663619870008/gviFhFBvRu5BmY2w8Dp6eH/habitflow-icon-192-U4vta7hMcNApffa9SbpxVi.webp",
           "sizes": "192x192"
         }
       ]
@@ -68,7 +69,7 @@
       "url": "/analytics",
       "icons": [
         {
-          "src": "/favicon.ico",
+          "src": "https://d2xsxph8kpxj0f.cloudfront.net/310519663619870008/gviFhFBvRu5BmY2w8Dp6eH/habitflow-icon-192-U4vta7hMcNApffa9SbpxVi.webp",
           "sizes": "192x192"
         }
       ]
