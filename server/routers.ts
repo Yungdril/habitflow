@@ -109,7 +109,9 @@ export const appRouter = router({
 
         const dateStr = input.date.toISOString().split("T")[0];
         const today = new Date().toISOString().split("T")[0];
-
+        if (dateStr > today) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Habits cannot be completed for a future date." });
+        }
         // Check existing tracking for this date
         const existingTracking = await db.getTrackingForHabitAndDate(input.habitId, ctx.user.id, input.date);
         
@@ -128,16 +130,19 @@ export const appRouter = router({
           completed: input.completed,
         });
 
-        // Only increment totalCompletions if this is a new completion
-        if (input.completed && dateStr === today) {
-          const wasAlreadyCompleted = existingTracking && existingTracking.completed;
-          if (!wasAlreadyCompleted) {
-            const newTotal = (habit.totalCompletions || 0) + 1;
-            await db.updateHabit(input.habitId, ctx.user.id, {
-              totalCompletions: newTotal,
-              lastCompletedDate: input.date,
-            });
-          }
+        // Keep persisted counters authoritative so analytics and achievements
+        // remain correct after refreshes and across devices.
+        const wasCompleted = Boolean(existingTracking?.completed);
+        const completionChanged = input.completed !== wasCompleted;
+        if (completionChanged) {
+          const newTotal = Math.max(0, (habit.totalCompletions || 0) + (input.completed ? 1 : -1));
+          await db.updateHabit(input.habitId, ctx.user.id, {
+            totalCompletions: newTotal,
+            ...(input.completed && { lastCompletedDate: input.date }),
+          });
+          const streakStats = await db.getHabitStreakStats(input.habitId, ctx.user.id);
+          await db.updateHabit(input.habitId, ctx.user.id, streakStats);
+          if (input.completed) await db.awardAchievementsForHabit(ctx.user.id, input.habitId);
         }
 
         return result;
@@ -220,25 +225,45 @@ export const appRouter = router({
         freezeType: z.enum(["daily", "weekly"]),
       }))
       .mutation(async ({ ctx, input }) => {
+        const habit = await db.getHabitById(input.habitId, ctx.user.id);
+        if (!habit) throw new TRPCError({ code: "NOT_FOUND", message: "Habit not found" });
+
+        const monthlyUsage = await db.getMonthlyStreakFreezeCount(ctx.user.id);
+        if (monthlyUsage >= 1) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: "You can use only one streak freeze per month.",
+          });
+        }
+
         const freeze = await db.createStreakFreeze({
           habitId: input.habitId,
           userId: ctx.user.id,
-          freezeDate: new Date(),
+          freezeDate: new Date().toISOString().slice(0, 10) as any,
           freezeType: input.freezeType,
         });
-        return freeze;
+        if (!freeze) return null;
+        await db.useStreakFreeze(freeze.id, ctx.user.id);
+        await db.updateHabit(input.habitId, ctx.user.id, await db.getHabitStreakStats(input.habitId, ctx.user.id));
+        await db.awardAchievementsForHabit(ctx.user.id, input.habitId);
+        return db.getStreakFreezeById(freeze.id, ctx.user.id);
       }),
 
     getForHabit: protectedProcedure
       .input(z.object({ habitId: z.number() }))
       .query(async ({ ctx, input }) => {
+        const habit = await db.getHabitById(input.habitId, ctx.user.id);
+        if (!habit) throw new TRPCError({ code: "NOT_FOUND" });
         return db.getStreakFreezesForHabit(input.habitId, ctx.user.id);
       }),
 
+    getMonthlyUsage: protectedProcedure.query(({ ctx }) => db.getMonthlyStreakFreezeCount(ctx.user.id)),
+
     use: protectedProcedure
       .input(z.object({ freezeId: z.number() }))
-      .mutation(async ({ input }) => {
-        await db.useStreakFreeze(input.freezeId);
+      .mutation(async ({ ctx, input }) => {
+        const used = await db.useStreakFreeze(input.freezeId, ctx.user.id);
+        if (!used) throw new TRPCError({ code: "CONFLICT", message: "Freeze is unavailable or already used." });
         return { success: true };
       }),
   }),
@@ -287,4 +312,3 @@ export const appRouter = router({
 });
 
 export type AppRouter = typeof appRouter;
-

@@ -5,6 +5,7 @@ import { Plus } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import HabitCard from "@/components/HabitCard";
 import CreateHabitModal from "@/components/CreateHabitModal";
+import AchievementsDisplay from "@/components/AchievementsDisplay";
 import { useAuth } from "@/_core/hooks/useAuth";
 
 export default function Dashboard() {
@@ -38,6 +39,18 @@ export default function Dashboard() {
             New Habit
           </Button>
         </div>
+
+        {/* Progress snapshot */}
+        <section className="rounded-2xl border border-white/10 bg-card/20 p-5 backdrop-blur-xl">
+          <div className="mb-4 flex items-center justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">Momentum unlocked</p>
+              <h2 className="mt-1 text-xl font-semibold text-foreground">Your latest achievements</h2>
+            </div>
+            <span className="text-xs text-muted-foreground">Earned automatically from your progress</span>
+          </div>
+          <AchievementsDisplay compact />
+        </section>
 
         {/* Habits Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

@@ -210,6 +210,69 @@ export async function upsertTracking(tracking: InsertHabitTracking) {
   }
 }
 
+export async function getHabitStreakStats(habitId: number, userId: number) {
+  const db = await getDb();
+  if (!db) return { currentStreak: 0, longestStreak: 0 };
+
+  const startDate = new Date();
+  startDate.setUTCDate(startDate.getUTCDate() - 3660);
+  const endDate = new Date();
+  const history = await getHabitTrackingHistory(habitId, userId, startDate, endDate);
+  const completedDates = new Set(
+    history
+      .filter((entry) => entry.completed)
+      .map((entry) => entry.completedDate instanceof Date
+        ? entry.completedDate.toISOString().slice(0, 10)
+        : String(entry.completedDate).slice(0, 10))
+  );
+  const today = new Date();
+  today.setUTCHours(0, 0, 0, 0);
+
+  const freezes = await getStreakFreezesForHabit(habitId, userId);
+  for (const freeze of freezes) {
+    if (!freeze.usedAt) continue;
+    const freezeDate = freeze.freezeDate instanceof Date
+      ? freeze.freezeDate.toISOString().slice(0, 10)
+      : String(freeze.freezeDate).slice(0, 10);
+    const daysCovered = freeze.freezeType === "weekly" ? 7 : 1;
+    for (let offset = 0; offset < daysCovered; offset++) {
+      const coveredDate = new Date(`${freezeDate}T00:00:00Z`);
+      coveredDate.setUTCDate(coveredDate.getUTCDate() + offset);
+      if (coveredDate <= today) completedDates.add(coveredDate.toISOString().slice(0, 10));
+    }
+  }
+
+  let currentStreak = 0;
+  const todayKey = today.toISOString().slice(0, 10);
+  const yesterday = new Date(today);
+  yesterday.setUTCDate(yesterday.getUTCDate() - 1);
+  const cursor = new Date(completedDates.has(todayKey) ? today : yesterday);
+  if (!completedDates.has(cursor.toISOString().slice(0, 10))) {
+    return { currentStreak: 0, longestStreak: 0 };
+  }
+  while (completedDates.has(cursor.toISOString().slice(0, 10))) {
+    currentStreak += 1;
+    cursor.setUTCDate(cursor.getUTCDate() - 1);
+  }
+
+  const sortedDates = Array.from(completedDates).sort();
+  let longestStreak = 0;
+  let runningStreak = 0;
+  let previous: Date | null = null;
+  for (const dateValue of sortedDates) {
+    const date = new Date(`${dateValue}T00:00:00Z`);
+    if (previous && date.getTime() - previous.getTime() === 24 * 60 * 60 * 1000) {
+      runningStreak += 1;
+    } else {
+      runningStreak = 1;
+    }
+    longestStreak = Math.max(longestStreak, runningStreak);
+    previous = date;
+  }
+
+  return { currentStreak, longestStreak };
+}
+
 export async function getCompletionStats(userId: number, startDate: Date, endDate: Date) {
   const db = await getDb();
   if (!db) return { totalHabits: 0, completedToday: 0, completionRate: 0 };
@@ -463,20 +526,48 @@ export async function getNotificationPreferences(userId: number): Promise<Notifi
 // Streak Freeze Functions
 // ============================================================================
 
+export async function getMonthlyStreakFreezeCount(userId: number, date = new Date()): Promise<number> {
+  const db = await getDb();
+  if (!db) return 0;
+
+  const monthStart = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1));
+  const monthEnd = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 0));
+  const result = await db
+    .select({ count: sql`COUNT(*)` })
+    .from(streakFreezes)
+    .where(and(
+      eq(streakFreezes.userId, userId),
+      gte(streakFreezes.freezeDate, monthStart.toISOString().slice(0, 10) as any),
+      lte(streakFreezes.freezeDate, monthEnd.toISOString().slice(0, 10) as any),
+    ));
+
+  return Number(result[0]?.count ?? 0);
+}
+
+export async function getStreakFreezeById(freezeId: number, userId: number): Promise<StreakFreeze | null> {
+  const db = await getDb();
+  if (!db) return null;
+  const result = await db
+    .select()
+    .from(streakFreezes)
+    .where(and(eq(streakFreezes.id, freezeId), eq(streakFreezes.userId, userId)))
+    .limit(1);
+  return result.length > 0 ? result[0] : null;
+}
+
 export async function createStreakFreeze(data: InsertStreakFreeze): Promise<StreakFreeze | null> {
   const db = await getDb();
   if (!db) return null;
 
   const result = await db.insert(streakFreezes).values(data);
-  if (!result || !result[0]) return null;
+  const insertedId = Number((result as any).insertId ?? 0);
+  if (!insertedId) return null;
 
   const freeze = await db
     .select()
     .from(streakFreezes)
-    .where(eq(streakFreezes.habitId, data.habitId))
-    .orderBy(desc(streakFreezes.createdAt))
+    .where(and(eq(streakFreezes.id, insertedId), eq(streakFreezes.userId, data.userId)))
     .limit(1);
-
   return freeze.length > 0 ? freeze[0] : null;
 }
 
@@ -491,33 +582,19 @@ export async function getStreakFreezesForHabit(habitId: number, userId: number):
     .orderBy(desc(streakFreezes.freezeDate));
 }
 
-export async function getUnusedStreakFreeze(habitId: number, userId: number): Promise<StreakFreeze | null> {
+export async function useStreakFreeze(freezeId: number, userId: number): Promise<boolean> {
   const db = await getDb();
-  if (!db) return null;
+  if (!db) return false;
 
-  const result = await db
-    .select()
-    .from(streakFreezes)
-    .where(
-      and(
-        eq(streakFreezes.habitId, habitId),
-        eq(streakFreezes.userId, userId),
-        sql`${streakFreezes.usedAt} IS NULL`
-      )
-    )
-    .limit(1);
-
-  return result.length > 0 ? result[0] : null;
-}
-
-export async function useStreakFreeze(freezeId: number): Promise<void> {
-  const db = await getDb();
-  if (!db) return;
-
-  await db
+  const updated = await db
     .update(streakFreezes)
     .set({ usedAt: new Date() })
-    .where(eq(streakFreezes.id, freezeId));
+    .where(and(
+      eq(streakFreezes.id, freezeId),
+      eq(streakFreezes.userId, userId),
+      sql`${streakFreezes.usedAt} IS NULL`,
+    ));
+  return Number((updated as any).affectedRows ?? 0) > 0;
 }
 
 // ============================================================================
@@ -574,4 +651,36 @@ export async function getAchievementsByCategory(userId: number, category: string
     .from(achievements)
     .where(and(eq(achievements.userId, userId), eq(achievements.category, category as any)))
     .orderBy(desc(achievements.earnedAt));
+}
+
+
+export async function awardAchievementsForHabit(userId: number, habitId: number): Promise<Achievement[]> {
+  const db = await getDb();
+  if (!db) return [];
+
+  const habit = await getHabitById(habitId, userId);
+  if (!habit) return [];
+
+  const definitions = [
+    { badgeId: "first-step", badgeName: "First Step", description: "Complete your first habit check-in.", icon: "footprints", category: "milestone" as const, qualifies: habit.totalCompletions >= 1 },
+    { badgeId: "ten-check-ins", badgeName: "Building Momentum", description: "Complete 10 habit check-ins.", icon: "zap", category: "completion" as const, qualifies: habit.totalCompletions >= 10 },
+    { badgeId: "fifty-check-ins", badgeName: "Consistency Machine", description: "Complete 50 habit check-ins.", icon: "star", category: "completion" as const, qualifies: habit.totalCompletions >= 50 },
+    { badgeId: "seven-day-streak", badgeName: "One Week Strong", description: "Reach a 7-day streak.", icon: "trophy", category: "streak" as const, qualifies: habit.currentStreak >= 7 },
+    { badgeId: "thirty-day-streak", badgeName: "Unstoppable", description: "Reach a 30-day streak.", icon: "crown", category: "streak" as const, qualifies: habit.currentStreak >= 30 },
+  ];
+
+  const awarded: Achievement[] = [];
+  for (const definition of definitions) {
+    if (!definition.qualifies || await checkAchievementExists(userId, definition.badgeId)) continue;
+    const achievement = await createAchievement({
+      userId,
+      badgeId: definition.badgeId,
+      badgeName: definition.badgeName,
+      description: definition.description,
+      icon: definition.icon,
+      category: definition.category,
+    });
+    if (achievement) awarded.push(achievement);
+  }
+  return awarded;
 }

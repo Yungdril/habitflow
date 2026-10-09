@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { trpc } from '@/lib/trpc';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -20,7 +20,7 @@ const categoryColors = {
   special: 'text-pink-400',
 };
 
-export default function AchievementsDisplay() {
+export default function AchievementsDisplay({ compact = false }: { compact?: boolean }) {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const { data: achievements, isLoading } = trpc.achievement.list.useQuery();
 
@@ -56,7 +56,7 @@ export default function AchievementsDisplay() {
   return (
     <div className="space-y-6">
       {/* Category Filter */}
-      {categories.length > 0 && (
+      {!compact && categories.length > 0 && (
         <div className="flex flex-wrap gap-2">
           <button
             onClick={() => setSelectedCategory(null)}
@@ -89,8 +89,8 @@ export default function AchievementsDisplay() {
 
       {/* Achievements Grid */}
       {filteredAchievements && filteredAchievements.length > 0 ? (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {filteredAchievements.map((achievement) => {
+        <div className={`grid grid-cols-2 ${compact ? "md:grid-cols-5" : "md:grid-cols-4"} gap-4`}>
+          {(compact ? filteredAchievements.slice(0, 5) : filteredAchievements).map((achievement) => {
             const IconComponent = categoryIcons[achievement.category as keyof typeof categoryIcons];
             const colorClass = categoryColors[achievement.category as keyof typeof categoryColors];
 
@@ -122,7 +122,7 @@ export default function AchievementsDisplay() {
       )}
 
       {/* Stats Summary */}
-      {achievements && achievements.length > 0 && (
+      {!compact && achievements && achievements.length > 0 && (
         <Card className="p-4 bg-gradient-to-r from-blue-600/10 to-purple-600/10 border-blue-500/20">
           <div className="grid grid-cols-3 gap-4 text-center">
             <div>

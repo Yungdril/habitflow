@@ -15,15 +15,18 @@ import {
 interface StreakFreezeButtonProps {
   habitId: number;
   habitName: string;
+  disabled?: boolean;
+  onApplied?: () => void;
 }
 
-export default function StreakFreezeButton({ habitId, habitName }: StreakFreezeButtonProps) {
+export default function StreakFreezeButton({ habitId, habitName, disabled = false, onApplied }: StreakFreezeButtonProps) {
   const [open, setOpen] = useState(false);
   const [freezeType, setFreezeType] = useState<'daily' | 'weekly'>('daily');
 
   const createFreezeMutation = trpc.streakFreeze.create.useMutation({
     onSuccess: () => {
       toast.success(`Streak freeze applied for "${habitName}"!`);
+      onApplied?.();
       setOpen(false);
     },
     onError: (error) => {
@@ -44,10 +47,11 @@ export default function StreakFreezeButton({ habitId, habitName }: StreakFreezeB
         <Button
           variant="outline"
           size="sm"
+          disabled={disabled}
           className="gap-2 border-yellow-500/30 hover:bg-yellow-500/10"
         >
           <Zap className="w-4 h-4 text-yellow-400" />
-          Use Freeze
+          {disabled ? "Freeze Used" : "Use Freeze"}
         </Button>
       </DialogTrigger>
       <DialogContent>
@@ -64,7 +68,7 @@ export default function StreakFreezeButton({ habitId, habitName }: StreakFreezeB
             <AlertCircle className="w-5 h-5 text-yellow-400 flex-shrink-0 mt-0.5" />
             <div className="text-sm text-yellow-200">
               <p className="font-semibold mb-1">Limited Resource</p>
-              <p>You have a limited number of streak freezes per month. Use them wisely!</p>
+              <p>You can protect one missed day per calendar month across all habits.</p>
             </div>
           </div>
 

@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Check, Edit, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import EditHabitModal from "./EditHabitModal";
+import StreakFreezeButton from "./StreakFreezeButton";
 
 // Shared type for Habit
 export type { Habit };
@@ -17,14 +18,15 @@ interface HabitCardProps {
 export default function HabitCard({ habit, onUpdate }: HabitCardProps) {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isCheckedToday, setIsCheckedToday] = useState(false);
-
+  const [todayQueryDate] = useState(() => new Date());
 
   // Check if habit was completed today on mount
   const { data: todayCompletion } = trpc.tracking.getForHabitAndDate.useQuery(
     {
       habitId: habit.id,
-      date: new Date(),
-    }
+      date: todayQueryDate,
+    },
+    { enabled: habit.id > 0 },
   );
 
   // Update completion state when data is fetched
@@ -36,6 +38,7 @@ export default function HabitCard({ habit, onUpdate }: HabitCardProps) {
     }
   }, [todayCompletion]);
 
+  const { data: monthlyFreezeUsage = 0 } = trpc.streakFreeze.getMonthlyUsage.useQuery();
   const utils = trpc.useUtils();
   const toggleMutation = trpc.tracking.toggle.useMutation({
     onMutate: async ({ habitId, date, completed }) => {
@@ -72,6 +75,8 @@ export default function HabitCard({ habit, onUpdate }: HabitCardProps) {
       toast.error("Failed to update habit");
     },
     onSuccess: () => {
+      utils.achievement.list.invalidate();
+      utils.habits.list.invalidate();
       toast.success("Habit updated!");
     },
   });
@@ -193,6 +198,19 @@ export default function HabitCard({ habit, onUpdate }: HabitCardProps) {
           >
             <Check className="w-6 h-6" />
           </Button>
+        </div>
+
+        <div className="flex items-center justify-between gap-3 border-t border-white/10 pt-3">
+          <div>
+            <p className="text-xs font-medium text-foreground">Streak protection</p>
+            <p className="text-[11px] text-muted-foreground">{monthlyFreezeUsage >= 1 ? "Monthly freeze used" : "1 freeze available this month"}</p>
+          </div>
+          <StreakFreezeButton
+            habitId={habit.id}
+            habitName={habit.name}
+            disabled={monthlyFreezeUsage >= 1}
+            onApplied={() => utils.streakFreeze.getMonthlyUsage.invalidate()}
+          />
         </div>
 
         {/* Progress bar */}
